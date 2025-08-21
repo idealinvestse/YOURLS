@@ -1,9 +1,33 @@
 <?php
+/*
+ * yourls-infos.php — Statistics page controller and renderer
+ *
+ * This script builds and renders the public statistics page for a given short URL
+ * keyword. It is responsible for:
+ *   - Validating the requested keyword and loading related metadata
+ *   - Optionally aggregating stats across duplicate keywords (when enabled)
+ *   - Querying the click log for referrers, countries, and temporal distributions
+ *   - Passing datasets to rendering helpers (graphs, maps, tables)
+ *   - Emitting the full HTML page with tabs for stats, location, sources, and share box
+ *
+ * Note: Historically this file mixes PHP and HTML (“soup”); comments explain each
+ * major stage to make the flow easier to follow without altering behavior.
+ */
 // TODO: make things cleaner. This file is an awful HTML/PHP soup.
+
+// Flag this execution context as the "infos" (statistics) view.
 define( 'YOURLS_INFOS', true );
+
+// Bootstrap YOURLS core (config, DB, plugins, helpers) so we can use APIs below.
 require_once( dirname( __FILE__ ).'/includes/load-yourls.php' );
+
+// Enforce authentication if configured (eg, private installs). Visitors may need
+// valid credentials to see stats.
 yourls_maybe_require_auth();
 
+// The variable $keyword is set by `yourls-loader.php` from the request path.
+// If it's missing, we cannot display stats; allow plugins to react, then fall
+// back to site root with a temporary redirect.
 // Variables should be defined in yourls-loader.php
 if ( !isset( $keyword ) ) {
 	yourls_do_action( 'infos_no_keyword' );
@@ -11,39 +35,49 @@ if ( !isset( $keyword ) ) {
 	exit;
 }
 
+// Get and sanitize core metadata for the short URL. These helpers read from the
+// database and provide the destination URL, number of clicks, creation time, and
+// the stored title (if any).
 // Get basic infos for this shortened URL
-$keyword = yourls_sanitize_keyword( $keyword );
-$longurl = yourls_get_keyword_longurl( $keyword );
-$clicks = yourls_get_keyword_clicks( $keyword );
+$keyword   = yourls_sanitize_keyword( $keyword );
+$longurl   = yourls_get_keyword_longurl( $keyword );
+$clicks    = yourls_get_keyword_clicks( $keyword );
 $timestamp = yourls_get_keyword_timestamp( $keyword );
-$title = yourls_get_keyword_title( $keyword );
+$title     = yourls_get_keyword_title( $keyword );
 
+// If the title wasn't set at creation time (or was empty), attempt to fetch the
+// remote page title from the destination URL and persist it for future displays.
 // Update title if it hasn't been stored yet
 if( $title == '' ) {
 	$title = yourls_get_remote_title( $longurl );
 	yourls_edit_link_title( $keyword, $title );
 }
 
+// If the keyword does not exist, notify hooks and redirect to site root. Using
+// 302 avoids “not found” log clutter and allows future creation of the keyword.
 if ( $longurl === false ) {
 	yourls_do_action( 'infos_keyword_not_found' );
 	yourls_redirect( YOURLS_SITE, 302 );
     exit;
 }
 
+// Pre-render hook: plugins can alter behavior or preload resources for the stats page.
 yourls_do_action( 'pre_yourls_infos', $keyword );
 
 
+// Only compute and display log-based statistics if click logging is enabled in YOURLS.
 if( yourls_do_log_redirect() ) {
 
-	$table = YOURLS_DB_TABLE_LOG;
-	$referrers = array();
-	$direct = $notdirect = 0;
-	$countries = array();
-	$dates = array();
-	$list_of_days = array();
-	$list_of_months = array();
-	$list_of_years = array();
-	$last_24h = array();
+	// Initialize accumulators and working structures used for charting and lists.
+	$table         = YOURLS_DB_TABLE_LOG;     // Click log table
+	$referrers     = array();                 // Host -> (URL -> count)
+	$direct        = $notdirect = 0;          // Direct vs non-direct click counters
+	$countries     = array();                 // Country code -> count
+	$dates         = array();                 // [Y][m][d] -> count
+	$list_of_days  = array();                 // Flattened list of daily totals
+	$list_of_months= array();                 // Helper list of months present
+	$list_of_years = array();                 // Helper list of years present
+	$last_24h      = array();                 // Hour label -> count (last 24h)
 
 	if( yourls_allow_duplicate_longurls() )
 		$keyword_list = yourls_get_longurl_keywords( $longurl );
@@ -209,13 +243,16 @@ if( yourls_do_log_redirect() ) {
 
 }
 
+// Begin page rendering: header, logo, and navigation menu for the statistics UI
 yourls_html_head( 'infos', yourls_s( 'Statistics for %s', YOURLS_SITE.'/'.$keyword ) );
 yourls_html_logo();
 yourls_html_menu();
 ?>
 
+<!-- Page title: sanitized link title, possibly fetched remotely if not stored -->
 <h2 id="informations"><?php echo yourls_esc_html( $title ); ?></h2>
 
+<!-- Short URL display with favicon and optional aggregate stats link -->
 <h3><span class="label"><?php yourls_e( 'Short URL'); ?>:</span> <img src="<?php yourls_get_yourls_favicon_url() ?>"/>
 <?php if( $aggregate ) {
 	$i = 0;
@@ -234,8 +271,11 @@ yourls_html_menu();
 	if( isset( $keyword_list ) && count( $keyword_list ) > 1 )
 		echo ' <a href="'. yourls_link($keyword).'+all" title="' . yourls_esc_attr__( 'Aggregate stats for duplicate short URLs' ) . '"><img src="' . yourls_match_current_protocol( YOURLS_SITE ) . '/images/chart_bar_add.svg" border="0" /></a>';
 } ?></h3>
+
+<!-- Destination long URL with its site favicon and trimmed display text -->
 <h3 id="longurl"><span class="label"><?php yourls_e( 'Long URL'); ?>:</span> <img class="fix_images" src="<?php echo yourls_get_favicon_url( $longurl );?>" /> <?php yourls_html_link( $longurl, yourls_trim_long_string( $longurl ), 'longurl' ); ?></h3>
 
+<!-- Tabs container: stats/location/sources/share navigation -->
 <div id="tabs">
 	<div class="wrap_unfloat">
 	<ul id="headers" class="toggle_display stat_tab">
@@ -247,7 +287,6 @@ yourls_html_menu();
 		<li><a href="#stat_tab_share"><h2><?php yourls_e( 'Share'); ?></h2></a></li>
 	</ul>
 	</div>
-
 
 <?php if( yourls_do_log_redirect() ) { ?>
 	<div id="stat_tab_stats" class="tab">
@@ -293,6 +332,7 @@ yourls_html_menu();
 			}
 			?>
 
+			<!-- Display links to switch between time-range graphs for quick switching -->
 			<table border="0" cellspacing="2">
 			<tr>
 				<td valign="top">
@@ -309,7 +349,7 @@ yourls_html_menu();
 				?>
 				</ul>
 				<?php
-				// Generate, and display if applicable, each needed graph
+				// Render each graph if data exists; only one is visible by default, others are hidden and toggled via anchors above
 				foreach( $graphs as $graph => $graphtitle ) {
 					if( ${'do_'.$graph} == true ) {
 						$display = ( ${'display_'.$graph} === true ? 'display:block' : 'display:none' );
@@ -337,6 +377,7 @@ yourls_html_menu();
 
 				</td>
 				<td valign="top">
+				<!-- Summary metrics: creation date and average rates for selected ranges -->
 				<h3><?php yourls_e( 'Historical click count' ); ?></h3>
 				<?php
 				$timestamp = strtotime( $timestamp );
@@ -349,6 +390,7 @@ yourls_html_menu();
 				?>
 				<p><?php echo /* //translators: eg Short URL created on March 23rd 1972 */ yourls_s( 'Short URL created on %s', yourls_date_i18n( yourls_get_datetime_format("F j, Y @ g:i a"), yourls_get_timestamp( $timestamp ) ) ) . $daysago; ?></p>
 				<div class="wrap_unfloat">
+					<!-- Display summary metrics for each time range -->
 					<ul class="no_bullet toggle_display stat_line" id="historical_clicks">
 					<?php
 					foreach( $graphs as $graph => $graphtitle ) {
@@ -379,6 +421,7 @@ yourls_html_menu();
 					</ul>
 				</div>
 
+				<!-- Identify the most active day and provide expandable per-year/month/day breakdown -->
 				<h3><?php yourls_e( 'Best day' ); ?></h3>
 				<?php
 				$best = yourls_stats_get_best_day( $list_of_days );
@@ -448,57 +491,59 @@ yourls_html_menu();
 			<tr>
 				<td valign="top">
 					<h3><?php yourls_e( 'Top 5 countries' ); ?></h3>
-					<?php yourls_stats_pie( $countries, 5, '340x220', 'stat_tab_location_pie' ); ?>
-					<p><a href="" class='details hide-if-no-js' id="more_countries"><?php yourls_e( 'Click for more details' ); ?></a></p>
-					<ul id="details_countries" style="display:none" class="no_bullet">
-					<?php
+					<?php yourls_stats_pie( $countries, 5, '340x220', 'stat_tab_location_pie' ); ?> <!-- Pie of top 5 countries (rest grouped) -->
+ 					<p><a href="" class='details hide-if-no-js' id="more_countries"><?php yourls_e( 'Click for more details' ); ?></a></p>
+ 					<ul id="details_countries" style="display:none" class="no_bullet">
+ 					<?php
+					// Full breakdown by country: flag, ISO code, localized name, and hit count
 					foreach( $countries as $code=>$count ) {
-						echo "<li><img src='".yourls_geo_get_flag( $code )."' /> $code (".yourls_geo_countrycode_to_countryname( $code ) . ') : ' . sprintf( yourls_n( '1 hit', '%s hits', $count ), $count ) . "</li>\n";
-					}
-					?>
-					</ul>
+ 						echo "<li><img src='".yourls_geo_get_flag( $code )."' /> $code (".yourls_geo_countrycode_to_countryname( $code ) . ') : ' . sprintf( yourls_n( '1 hit', '%s hits', $count ), $count ) . "</li>\n";
+ 					}
+ 					?>
+ 					</ul>
 
 				</td>
-				<td valign="top">
-					<h3><?php yourls_e( 'Overall traffic' ); ?></h3>
-					<?php yourls_stats_countries_map( $countries, 'stat_tab_location_map' ); ?>
-				</td>
+ 				<td valign="top">
+ 					<h3><?php yourls_e( 'Overall traffic' ); ?></h3>
+					<?php yourls_stats_countries_map( $countries, 'stat_tab_location_map' ); // World map heat by country ?>
+ 				</td>
 			</tr>
-			</table>
-
-		<?php yourls_do_action( 'post_yourls_info_location', $keyword ); ?>
-
-		<?php } else {
-			echo '<p>' . yourls__( 'No country data.' ) . '</p>';
-		} ?>
-	</div>
-
-
-	<div id="stat_tab_sources" class="tab">
-		<h2><?php yourls_e( 'Traffic sources' ); ?></h2>
-
-		<?php yourls_do_action( 'pre_yourls_info_sources', $keyword ); ?>
-
-		<?php if ( $referrers ) { ?>
-
-			<table border="0" cellspacing="2">
-			<tr>
-				<td valign="top">
+  			</table>
+ 
+ 		<?php yourls_do_action( 'post_yourls_info_location', $keyword ); ?>
+ 
+ 		
+ 		</div>
+ 
+ 		<div id="stat_tab_sources" class="tab">
+ 			<h2><?php yourls_e( 'Traffic sources' ); ?></h2>
+ 
+ 			<?php yourls_do_action( 'pre_yourls_info_sources', $keyword ); ?>
+ 
+ 		<?php if ( $referrers ) { ?>
+ 		
+ 			<table border="0" cellspacing="2">
+ 			<tr>
+  				<td valign="top">
 					<h3><?php yourls_e( 'Referrer shares' ); ?></h3>
 					<?php
+					// If multiple domains, add synthetic 'Others' bucket for the long tail
 					if ( $number_of_sites > 1 )
 						$referrer_sort[ yourls__( 'Others' ) ] = count( $referrers );
-					yourls_stats_pie( $referrer_sort, 5, '440x220', 'stat_tab_source_ref' );
+					// Draw the pie (limited to up to 5 slices), where 'Others' groups remaining
+					yourls_stats_pie( $referrer_sort, 5, '440x220', 'stat_tab_source_ref' ); // Sources pie setup: top domains and 'Others'
+					// Remove the temporary 'Others' entry to keep $referrer_sort consistent
 					unset( $referrer_sort[yourls__('Others')] );
 					?>
 					<h3><?php yourls_e( 'Referrers' ); ?></h3>
 					<ul class="no_bullet">
 						<?php
+						// Iterate top domains; show favicon, total, and expandable per-URL details
 						$i = 0;
-						foreach( $referrer_sort as $site => $count ) {
-							$i++;
-							$favicon = yourls_get_favicon_url( $site );
-							echo "<li class='sites_list'><img src='$favicon' class='fix_images'/> $site: <strong>$count</strong> <a href='' class='details hide-if-no-js' id='more_url$i'>" . yourls__( '(details)' ) . "</a></li>\n";
+ 						foreach( $referrer_sort as $site => $count ) {
+ 							$i++;
+ 							$favicon = yourls_get_favicon_url( $site );
+ 							echo "<li class='sites_list'><img src='$favicon' class='fix_images'/> $site: <strong>$count</strong> <a href='' class='details hide-if-no-js' id='more_url$i'>" . yourls__( '(details)' ) . "</a></li>\n";
 							echo "<ul id='details_url$i' style='display:none'>";
 							foreach( $referrers[$site] as $url => $count ) {
 								echo "<li>"; yourls_html_link($url); echo ": <strong>$count</strong></li>\n";
@@ -506,16 +551,17 @@ yourls_html_menu();
 							echo "</ul>\n";
 							unset( $referrers[$site] );
 						}
-						// Any referrer left? Group in "various"
+ 						// Any referrer left? Group in "various"
 						if ( $referrers ) {
-							echo "<li id='sites_various'>" . yourls__( 'Various:' ) . " <strong>". count( $referrers ). "</strong> <a href='' class='details hide-if-no-js' id='more_various'>" . yourls__( '(details)' ) . "</a></li>\n";
-							echo "<ul id='details_various' style='display:none'>";
+ 							echo "<li id='sites_various'>" . yourls__( 'Various:' ) . " <strong>". count( $referrers ). "</strong> <a href='' class='details hide-if-no-js' id='more_various'>" . yourls__( '(details)' ) . "</a></li>\n";
+ 							echo "<ul id='details_various' style='display:none'>";
+							// One-off referrers (each entry contains a single URL key)
 							foreach( $referrers as $url ) {
-								echo "<li>"; yourls_html_link(key($url)); echo ": 1</li>\n";
-							}
-							echo "</ul>\n";
-						}
-						?>
+ 								echo "<li>"; yourls_html_link(key($url)); echo ": 1</li>\n";
+ 							}
+ 							echo "</ul>\n";
+ 						}
+						// Referrer foreach loop: iterate top domains and 'various' group ?>
 
 					</ul>
 
@@ -524,7 +570,7 @@ yourls_html_menu();
 				<td valign="top">
 					<h3><?php yourls_e( 'Direct vs Referrer Traffic' ); ?></h3>
 					<?php
-					yourls_stats_pie( array( yourls__( 'Direct' ) => $direct, yourls__( 'Referrers' ) => $notdirect ), 5, '440x220', 'stat_tab_source_direct' );
+					yourls_stats_pie( array( yourls__( 'Direct' ) => $direct, yourls__( 'Referrers' ) => $notdirect ), 5, '440x220', 'stat_tab_source_direct' ); // 2-slice pie: direct vs referred
 					?>
 					<p><?php yourls_e( 'Direct traffic:' ); echo ' ' . sprintf( yourls_n( '<strong>%s</strong> hit', '<strong>%s</strong> hits', $direct ), $direct ); ?> </p>
 					<p><?php yourls_e( 'Referrer traffic:' ); echo ' ' . sprintf( yourls_n( '<strong>%s</strong> hit', '<strong>%s</strong> hits', $notdirect ), $notdirect ); ?> </p>
@@ -532,26 +578,25 @@ yourls_html_menu();
 				</td>
 			</tr>
 			</table>
+ 
+ 		<?php yourls_do_action( 'post_yourls_info_sources', $keyword ); ?>
+ 
+ 		<?php } else {
+ 			echo '<p>' . yourls__( 'No traffic yet. Get some clicks first!' ) . '</p>';
+ 		} ?>
+ 
+ 		</div>
+  
+ <?php } // endif do log redirect ?>
 
-		<?php yourls_do_action( 'post_yourls_info_sources', $keyword ); ?>
 
-		<?php } else {
-			echo '<p>' . yourls__( 'No referrer data.' ) . '</p>';
-		} ?>
+ 	<div id="stat_tab_share" class="tab">
+ 		<h2><?php yourls_e( 'Share' ); ?></h2>
 
-	</div>
-
-<?php } // endif do log redirect ?>
-
-
-	<div id="stat_tab_share" class="tab">
-		<h2><?php yourls_e( 'Share' ); ?></h2>
-
-		<?php yourls_share_box( $longurl, yourls_link($keyword), $title, '', '<h3>' . yourls__( 'Short link' ) . '</h3>', '<h3>' . yourls__( 'Quick Share' ) . '</h3>'); ?>
+		<?php yourls_share_box( $longurl, yourls_link($keyword), $title, '', '<h3>' . yourls__( 'Short link' ) . '</h3>', '<h3>' . yourls__( 'Quick Share' ) . '</h3>'); // Render share UI (short link + quick share widgets) ?>
 
 	</div>
 
 </div>
 
-
-<?php yourls_html_footer(); ?>
+<?php yourls_html_footer(); ?> <!-- Standard YOURLS footer with closing tags and scripts -->
