@@ -74,7 +74,7 @@ function yourls_html_head( $context = 'index', $title = '' ) {
 
 	// Body class
 	$bodyclass = yourls_apply_filter( 'bodyclass', '' );
-	$bodyclass .= ( yourls_is_mobile_device() ? 'mobile' : 'desktop' );
+	$bodyclass .= ( yourls_is_mobile_device() ? 'mobile' : 'desktop' ) . ' modern-ui';
 
 	// Page title
 	$_title = 'YOURLS &mdash; Your Own URL Shortener | ' . yourls_link();
@@ -90,12 +90,14 @@ function yourls_html_head( $context = 'index', $title = '' ) {
 	<meta http-equiv="Content-Type" content="<?php echo yourls_apply_filter( 'html_head_meta_content-type', 'text/html; charset=utf-8' ); ?>" />
 	<meta name="generator" content="YOURLS <?php echo YOURLS_VERSION ?>" />
 	<meta name="description" content="YOURLS &raquo; Your Own URL Shortener' | <?php yourls_site_url(); ?>" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<?php yourls_do_action('html_head_meta', $context); ?>
     <?php yourls_html_favicon(); ?>
 	<script src="<?php yourls_site_url(); ?>/js/jquery-3.5.1.min.js?v=<?php echo YOURLS_VERSION; ?>" type="text/javascript"></script>
 	<script src="<?php yourls_site_url(); ?>/js/common.js?v=<?php echo YOURLS_VERSION; ?>" type="text/javascript"></script>
 	<script src="<?php yourls_site_url(); ?>/js/jquery.notifybar.js?v=<?php echo YOURLS_VERSION; ?>" type="text/javascript"></script>
 	<link rel="stylesheet" href="<?php yourls_site_url(); ?>/css/style.css?v=<?php echo YOURLS_VERSION; ?>" type="text/css" media="screen" />
+	<link rel="stylesheet" href="<?php yourls_site_url(); ?>/css/admin-modern.css?v=<?php echo YOURLS_VERSION; ?>" type="text/css" media="screen" />
 	<?php if ( $tabs ) { ?>
 		<link rel="stylesheet" href="<?php yourls_site_url(); ?>/css/infos.css?v=<?php echo YOURLS_VERSION; ?>" type="text/css" media="screen" />
 		<script src="<?php yourls_site_url(); ?>/js/infos.js?v=<?php echo YOURLS_VERSION; ?>" type="text/javascript"></script>
