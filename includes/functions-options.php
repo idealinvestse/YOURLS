@@ -132,7 +132,7 @@ function yourls_maybe_serialize( $data ) {
  */
 function yourls_maybe_unserialize( $original ) {
     if ( yourls_is_serialized( $original ) ) // don't attempt to unserialize data that wasn't serialized going in
-        return @unserialize( $original );
+        return @unserialize( $original, ['allowed_classes' => false] );
     return $original;
 }
 

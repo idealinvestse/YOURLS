@@ -239,25 +239,32 @@ function yourls_get_referrer() {
  * @return int                  1 for header redirection, 2 for js redirection, 3 otherwise (CLI)
  */
 function yourls_redirect( $location, $code = 301 ) {
-	yourls_do_action( 'pre_redirect', $location, $code );
-	$location = yourls_apply_filter( 'redirect_location', $location, $code );
-	$code     = yourls_apply_filter( 'redirect_code', $code, $location );
+    yourls_do_action( 'pre_redirect', $location, $code );
+    $location = yourls_apply_filter( 'redirect_location', $location, $code );
+    $code     = yourls_apply_filter( 'redirect_code', $code, $location );
 
-	// Redirect, either properly if possible, or via Javascript otherwise
-	if( !headers_sent() ) {
-		yourls_status_header( $code );
-		header( "Location: $location" );
+    // Sanitize the redirect location to prevent header injection and invalid protocols
+    $location = yourls_sanitize_url_safe( $location );
+    if ( $location === '' ) {
+        // Fallback to YOURLS base site if sanitization yields empty/invalid URL
+        $location = yourls_get_yourls_site();
+    }
+
+    // Redirect, either properly if possible, or via Javascript otherwise
+    if( !headers_sent() ) {
+        yourls_status_header( $code );
+        header( "Location: $location" );
         return 1;
-	}
+    }
 
-	// Headers sent : redirect with JS if not in CLI
-	if( php_sapi_name() !== 'cli') {
+    // Headers sent : redirect with JS if not in CLI
+    if( php_sapi_name() !== 'cli') {
         yourls_redirect_javascript( $location );
         return 2;
-	}
+    }
 
-	// We're in CLI
-	return 3;
+    // We're in CLI
+    return 3;
 }
 
 /**

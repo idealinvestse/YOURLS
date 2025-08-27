@@ -427,7 +427,16 @@ function yourls_share_box( $longurl, $shorturl, $title = '', $text='', $shortlin
 	// Allow plugins to filter all data
 	$data = compact( 'longurl', 'shorturl', 'title', 'text', 'shortlink_title', 'share_title', 'share', 'count', 'hidden' );
 	$data = yourls_apply_filter( 'share_box_data', $data );
-	extract( $data );
+	// Assign explicitly to avoid variable pollution while preserving plugin modifications
+	$longurl         = array_key_exists( 'longurl', $data ) ? $data['longurl'] : $longurl;
+	$shorturl        = array_key_exists( 'shorturl', $data ) ? $data['shorturl'] : $shorturl;
+	$title           = array_key_exists( 'title', $data ) ? $data['title'] : $title;
+	$text            = array_key_exists( 'text', $data ) ? $data['text'] : $text;
+	$shortlink_title = array_key_exists( 'shortlink_title', $data ) ? $data['shortlink_title'] : $shortlink_title;
+	$share_title     = array_key_exists( 'share_title', $data ) ? $data['share_title'] : $share_title;
+	$share           = array_key_exists( 'share', $data ) ? $data['share'] : $share;
+	$count           = array_key_exists( 'count', $data ) ? $data['count'] : $count;
+	$hidden          = array_key_exists( 'hidden', $data ) ? $data['hidden'] : $hidden;
 
 	$_share = rawurlencode( $share );
 	$_url   = rawurlencode( $shorturl );
