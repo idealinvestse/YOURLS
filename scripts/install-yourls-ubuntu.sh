@@ -77,6 +77,10 @@ parse_args() {
   if [[ "$ENABLE_LETSENCRYPT" == "true" && -z "$LETSENCRYPT_EMAIL" ]]; then
     die "--email is required when using --letsencrypt"
   fi
+
+  # Basic validation to avoid SQL injection or invalid identifiers
+  [[ "$DB_NAME" =~ ^[A-Za-z0-9_]+$ ]] || die "--db-name must match ^[A-Za-z0-9_]+$"
+  [[ "$DB_USER" =~ ^[A-Za-z0-9_]+$ ]] || die "--db-user must match ^[A-Za-z0-9_]+$"
 }
 
 usage() {
@@ -129,12 +133,25 @@ install_packages() {
 
 setup_database() {
   log "Creating MariaDB database and user"
+  # Escape single quotes in password for SQL string literal
+  local DB_PASS_ESC
+  DB_PASS_ESC=$(printf '%s' "$DB_PASS" | sed "s/'/''/g")
+  local DB_NAME_SAFE
+  DB_NAME_SAFE="$DB_NAME"  # validated by regex above
   mysql -uroot <<SQL
-CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
-GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
+CREATE DATABASE IF NOT EXISTS \`$DB_NAME_SAFE\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '$DB_USER'@'localhost';
+ALTER USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS_ESC';
+GRANT ALL PRIVILEGES ON \`$DB_NAME_SAFE\`.* TO '$DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 SQL
+}
+
+test_db_connection() {
+  log "Verifying DB credentials for user '$DB_USER'"
+  if ! mysql -u"$DB_USER" -p"$DB_PASS" -D "$DB_NAME" -e "SELECT 1" >/dev/null 2>&1; then
+    die "Cannot connect as '$DB_USER' to DB '$DB_NAME'. Check credentials or MySQL auth plugin."
+  fi
 }
 
 fetch_yourls() {
@@ -357,6 +374,7 @@ main() {
   start_db_services
   mysql_ready
   setup_database
+  test_db_connection
   fetch_yourls
   write_config_php
   configure_nginx
