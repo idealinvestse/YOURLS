@@ -94,6 +94,12 @@ function yourls_update_clicks( $keyword, $clicks = false ) {
         return $pre;
     }
 
+	// In degraded stats mode, skip click updates entirely but report success so
+	// callers don't treat this as a hard failure.
+	if ( defined( 'YOURLS_DEGRADED_STATS' ) && YOURLS_DEGRADED_STATS ) {
+		return 1;
+	}
+
 	$keyword = yourls_sanitize_keyword( $keyword );
 	$table = YOURLS_DB_TABLE_URL;
 	if ( $clicks !== false && is_int( $clicks ) && $clicks >= 0 ) {
@@ -306,6 +312,26 @@ function yourls_handle_unknown_keyword( $keyword = null, $context = 'go' ) {
         yourls_log( 'warning', 'unknown_keyword', [ 'keyword' => $keyword, 'context' => $context ] );
     }
 
+    // Allow basic configurability of how unknown keywords are handled via
+    // optional config constants. If no constant is defined, preserve the
+    // historical behavior (302 redirect to YOURLS_SITE).
+    $behavior = 'home';
+    if ( defined( 'YOURLS_UNKNOWN_KEYWORD_BEHAVIOR' ) ) {
+        $behavior = strtolower( (string) YOURLS_UNKNOWN_KEYWORD_BEHAVIOR );
+    }
+
+    if ( $behavior === '404' ) {
+        // Respond with a 404 status instead of redirecting. yourls_die() will
+        // exit the request, so we do not fall through.
+        yourls_die( yourls__( 'URL not found' ), yourls__( 'Not Found' ), 404 );
+    }
+
+    if ( $behavior === 'custom' && defined( 'YOURLS_UNKNOWN_KEYWORD_URL' ) && YOURLS_UNKNOWN_KEYWORD_URL ) {
+        yourls_redirect( YOURLS_UNKNOWN_KEYWORD_URL, 302 );
+        exit;
+    }
+
+    // Fallback and default: redirect to the YOURLS base site.
     yourls_redirect( YOURLS_SITE, 302 );
     exit;
 }
@@ -581,6 +607,11 @@ function yourls_log_redirect( $keyword ) {
  * @return bool
  */
 function yourls_do_log_redirect() {
+	// If degraded stats mode is enabled, do not log detailed redirects.
+	if ( defined( 'YOURLS_DEGRADED_STATS' ) && YOURLS_DEGRADED_STATS ) {
+		return false;
+	}
+
 	return ( !defined( 'YOURLS_NOSTATS' ) || YOURLS_NOSTATS != true );
 }
 

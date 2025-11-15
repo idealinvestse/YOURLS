@@ -25,6 +25,52 @@ yourls_maybe_require_auth();
 // allows GET and POST clients. Null when missing.
 $action = ( isset( $_REQUEST['action'] ) ? $_REQUEST['action'] : null );
 
+// Apply conservative, configurable input length guards for API requests to
+// avoid processing absurdly large payloads. Defaults are chosen to be safe
+// for typical use while still allowing reasonable URLs and keywords.
+$max_keyword_length = defined( 'YOURLS_MAX_KEYWORD_LENGTH' ) ? (int) YOURLS_MAX_KEYWORD_LENGTH : 128;
+$max_url_length     = defined( 'YOURLS_MAX_URL_LENGTH' )     ? (int) YOURLS_MAX_URL_LENGTH     : 2048;
+
+if ( $action === 'shorturl' ) {
+	// Guard long URL length for shorten requests.
+	if ( $max_url_length > 0 && isset( $_REQUEST['url'] ) && strlen( (string) $_REQUEST['url'] ) > $max_url_length ) {
+		if ( function_exists( 'yourls_log' ) ) {
+			yourls_log( 'warning', 'api_url_too_long', [
+				'ip'  => function_exists( 'yourls_get_IP' ) ? yourls_get_IP() : null,
+				'len' => strlen( (string) $_REQUEST['url'] ),
+				'max' => $max_url_length,
+			] );
+		}
+		$return = [
+			'errorCode' => '414',
+			'message'   => 'URL too long',
+			'simple'    => 'URL too long',
+		];
+		$format = ( isset( $_REQUEST['format'] ) ? $_REQUEST['format'] : 'xml' );
+		yourls_api_output( $format, $return );
+		die();
+	}
+
+	// Guard custom keyword length if provided.
+	if ( $max_keyword_length > 0 && isset( $_REQUEST['keyword'] ) && strlen( (string) $_REQUEST['keyword'] ) > $max_keyword_length ) {
+		if ( function_exists( 'yourls_log' ) ) {
+			yourls_log( 'warning', 'api_keyword_too_long', [
+				'ip'  => function_exists( 'yourls_get_IP' ) ? yourls_get_IP() : null,
+				'len' => strlen( (string) $_REQUEST['keyword'] ),
+				'max' => $max_keyword_length,
+			] );
+		}
+		$return = [
+			'errorCode' => '414',
+			'message'   => 'Keyword too long',
+			'simple'    => 'Keyword too long',
+		];
+		$format = ( isset( $_REQUEST['format'] ) ? $_REQUEST['format'] : 'xml' );
+		yourls_api_output( $format, $return );
+		die();
+	}
+}
+
 // Give plugins a chance to run code on every API call (eg, logging, rate
 // limiting, metrics) regardless of the specific action requested.
 yourls_do_action( 'api', $action );

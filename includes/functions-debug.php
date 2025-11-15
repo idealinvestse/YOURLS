@@ -89,6 +89,50 @@ function yourls_log( $level, $message, array $context = [] ) {
     // Normalize level
     $level = strtolower( (string) $level );
 
+    // Simple level mapping so we can compare severity
+    $levels = [
+        'error'   => 0,
+        'warning' => 1,
+        'info'    => 2,
+        'debug'   => 3,
+    ];
+
+    if ( !isset( $levels[ $level ] ) ) {
+        $level = 'info';
+    }
+
+    // Determine minimum level to actually log. If not defined, default to
+    // 'warning' to avoid excessive noise in production when debug is on.
+    $min_level_name = 'warning';
+    if ( defined( 'YOURLS_LOG_LEVEL' ) && is_string( YOURLS_LOG_LEVEL ) ) {
+        $candidate = strtolower( YOURLS_LOG_LEVEL );
+        if ( isset( $levels[ $candidate ] ) ) {
+            $min_level_name = $candidate;
+        }
+    }
+
+    $min_level = $levels[ $min_level_name ];
+    if ( $levels[ $level ] > $min_level ) {
+        // Below threshold: do not log.
+        return;
+    }
+
+    // Basic sampling for particularly noisy events. Sampling values are
+    // configured via optional constants; a value of 1 means "log all".
+    $sampling = [];
+    $sampling['unknown_keyword'] = defined( 'YOURLS_LOG_SAMPLE_UNKNOWN_KEYWORD' ) ? (int) YOURLS_LOG_SAMPLE_UNKNOWN_KEYWORD : 1;
+    $sampling['auth_failure']    = defined( 'YOURLS_LOG_SAMPLE_AUTH_FAILURE' )    ? (int) YOURLS_LOG_SAMPLE_AUTH_FAILURE    : 1;
+
+    if ( isset( $sampling[ $message ] ) ) {
+        $rate = (int) $sampling[ $message ];
+        if ( $rate > 1 ) {
+            // Log roughly 1 out of $rate events.
+            if ( mt_rand( 1, $rate ) !== 1 ) {
+                return;
+            }
+        }
+    }
+
     // Basic context serialization; ignore failures silently to avoid
     // introducing new errors in debug logging itself.
     $context_str = '';

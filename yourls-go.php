@@ -40,6 +40,17 @@ if( !isset( $keyword ) ) {
 // like SQL injection, header injection, or routing ambiguities.
 $keyword = yourls_sanitize_keyword( $keyword );
 
+// Apply a conservative, configurable maximum length guard. Extremely long
+// keywords are treated as unknown to avoid unnecessary processing and to
+// protect against pathological requests.
+$max_keyword_length = defined( 'YOURLS_MAX_KEYWORD_LENGTH' ) ? (int) YOURLS_MAX_KEYWORD_LENGTH : 128;
+if ( $max_keyword_length > 0 && strlen( $keyword ) > $max_keyword_length ) {
+	if ( function_exists( 'yourls_log' ) ) {
+		yourls_log( 'warning', 'keyword_too_long', [ 'keyword' => $keyword, 'max' => $max_keyword_length ] );
+	}
+	yourls_handle_unknown_keyword( $keyword, 'go' );
+}
+
 // Check if the requested keyword maps to a YOURLS "page" instead of a short URL.
 // Pages are user- or system-defined routes (eg, "/about") rendered by YOURLS itself.
 // If it's a page, render it and stop further processing.

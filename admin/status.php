@@ -70,6 +70,37 @@ $checks[] = [
     'info'  => $options_info,
 ];
 
+// Runtime flags: safe mode, degraded stats, debug/log level, unknown keyword behavior
+$safe_mode      = defined( 'YOURLS_SAFE_MODE' ) && YOURLS_SAFE_MODE;
+$degraded_stats = defined( 'YOURLS_DEGRADED_STATS' ) && YOURLS_DEGRADED_STATS;
+$debug_on       = function_exists( 'yourls_get_debug_mode' ) ? yourls_get_debug_mode() : ( defined( 'YOURLS_DEBUG' ) && YOURLS_DEBUG );
+$log_level      = defined( 'YOURLS_LOG_LEVEL' ) ? strtolower( (string) YOURLS_LOG_LEVEL ) : 'warning';
+$unknown_behav  = defined( 'YOURLS_UNKNOWN_KEYWORD_BEHAVIOR' ) ? strtolower( (string) YOURLS_UNKNOWN_KEYWORD_BEHAVIOR ) : 'home';
+
+$checks[] = [
+    'label' => yourls__( 'Plugin safe mode' ),
+    'ok'    => !$safe_mode,
+    'info'  => $safe_mode ? yourls__( 'Enabled (plugins not loaded)' ) : yourls__( 'Disabled (plugins active)' ),
+];
+
+$checks[] = [
+    'label' => yourls__( 'Degraded stats mode' ),
+    'ok'    => !$degraded_stats,
+    'info'  => $degraded_stats ? yourls__( 'Enabled (click and log writes skipped)' ) : yourls__( 'Disabled (normal stats)' ),
+];
+
+$checks[] = [
+    'label' => yourls__( 'Debug & log level' ),
+    'ok'    => true,
+    'info'  => ($debug_on ? yourls__( 'Debug on' ) : yourls__( 'Debug off' )) . ' / ' . sprintf( yourls__( 'Log level: %s' ), $log_level ),
+];
+
+$checks[] = [
+    'label' => yourls__( 'Unknown keyword behavior' ),
+    'ok'    => true,
+    'info'  => $unknown_behav,
+];
+
 ?>
 <div class="wrap">
     <h2><?php echo yourls__( 'System status' ); ?></h2>
