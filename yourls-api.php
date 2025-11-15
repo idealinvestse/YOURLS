@@ -55,6 +55,12 @@ $return = yourls_apply_filter( 'api_action_' . $action, false );
 if ( false === $return ) {
 	// If no callback handled the action (unknown/missing), build a generic error
 	// response with a 400-like error code and a stable message string.
+	if ( function_exists( 'yourls_log' ) ) {
+		yourls_log( 'warning', 'api_unknown_action', [
+			'action' => $action,
+			'ip'     => function_exists( 'yourls_get_IP' ) ? yourls_get_IP() : null,
+		] );
+	}
 	$return = array(
 		'errorCode' => '400',
 		'message'   => 'Unknown or missing "action" parameter',

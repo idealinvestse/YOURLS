@@ -92,8 +92,6 @@ if ( yourls_keyword_is_taken($keyword) or yourls_is_page($keyword) ) {
 }
 
 // Fallback: unrecognized request (not a valid short URL, not a bookmarklet, not
-// a page). Give plugins a chance to react, then send the user back to site root.
-yourls_do_action( 'redirect_keyword_not_found', $keyword );
-yourls_do_action( 'loader_failed', $request );
-yourls_redirect( YOURLS_SITE, 302 );
-exit;
+// a page). Delegate to central handler for unknown keywords so behavior and hooks
+// are consistent across front controllers.
+yourls_handle_unknown_keyword( $keyword, 'loader' );

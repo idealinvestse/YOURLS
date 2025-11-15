@@ -268,6 +268,49 @@ function yourls_redirect( $location, $code = 301 ) {
 }
 
 /**
+ * Handle an unknown or missing keyword in a centralized way.
+ *
+ * This consolidates the fallback behavior that was previously duplicated in
+ * yourls-loader.php and yourls-go.php when a requested keyword does not map
+ * to a short URL or page.
+ *
+ * By default this preserves the existing YOURLS behavior: redirect to
+ * YOURLS_SITE with a 302 status code. The behavior can be adjusted later via
+ * plugin hooks or options without touching the front controllers again.
+ *
+ * @since 1.9.2
+ * @param string|null $keyword Keyword that could not be resolved
+ * @param string      $context Logical context (eg, 'go', 'loader', 'infos')
+ * @return void
+ */
+function yourls_handle_unknown_keyword( $keyword = null, $context = 'go' ) {
+    // Preserve existing hooks for backward compatibility.
+    // This hook is already used in yourls-go.php and yourls-loader.php.
+    yourls_do_action( 'redirect_keyword_not_found', $keyword, $context );
+
+    // The loader historically also triggered a specific hook when routing
+    // fails altogether. Keep that semantics when called from that context.
+    if ( $context === 'loader' ) {
+        // Best-effort: compute the current request path for listeners that
+        // expect it, but do not fail if helpers are not available yet.
+        $request = '';
+        if ( function_exists( 'yourls_get_request' ) ) {
+            $request = yourls_get_request();
+        }
+        yourls_do_action( 'loader_failed', $request );
+    }
+
+    // Default behavior: redirect to YOURLS base with a temporary redirect.
+    // This mirrors what front controllers did before this helper existed.
+    if ( function_exists( 'yourls_log' ) ) {
+        yourls_log( 'warning', 'unknown_keyword', [ 'keyword' => $keyword, 'context' => $context ] );
+    }
+
+    yourls_redirect( YOURLS_SITE, 302 );
+    exit;
+}
+
+/**
  * Redirect to an existing short URL
  *
  * Redirect client to an existing short URL (no check performed) and execute misc tasks: update

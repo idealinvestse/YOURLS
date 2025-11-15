@@ -62,16 +62,7 @@ if( $url = yourls_get_keyword_longurl( $keyword ) ) {
 }
 
 // If we reach this point, either the keyword is explicitly reserved (blocked), or it
-// simply does not exist in the database. Give plugins a chance to react (eg, show a
-// custom 404 page, log the event, provide suggestions, etc.).
-yourls_do_action( 'redirect_keyword_not_found', $keyword );
-
-// Fallback behavior: redirect to the YOURLS site root with a 302 (temporary) status.
-// Why 302 and not 404?
-// - Avoids polluting server logs with 404s for typos or probing.
-// - Signals that the condition may change (eg, a short URL might be created later).
-// - Keeps the public endpoint behavior simple and consistent.
-yourls_redirect( YOURLS_SITE, 302 );
-
-// Ensure no further PHP processing occurs after headers/output have been sent.
-exit();
+// simply does not exist in the database. Delegate to the central unknown keyword
+// handler, which preserves the previous default behavior (302 to YOURLS_SITE) and
+// keeps related hooks in one place.
+yourls_handle_unknown_keyword( $keyword, 'go' );

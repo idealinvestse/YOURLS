@@ -595,9 +595,27 @@ function yourls_load_plugins() {
     $plugins = [];
     foreach ( $active_plugins as $key => $plugin ) {
         $file = YOURLS_PLUGINDIR . '/' . $plugin;
-        if ( yourls_is_a_plugin_file($file) && yourls_include_file_sandbox( $file ) === true ) {
-            $plugins[] = $plugin;
-            unset( $active_plugins[ $key ] );
+        if ( yourls_is_a_plugin_file($file) ) {
+            $attempt = yourls_include_file_sandbox( $file );
+            if ( $attempt === true ) {
+                $plugins[] = $plugin;
+                unset( $active_plugins[ $key ] );
+            } else {
+                if ( function_exists( 'yourls_log' ) ) {
+                    yourls_log( 'error', 'plugin_load_failed', [
+                        'plugin' => $plugin,
+                        'file'   => $file,
+                        'error'  => is_string( $attempt ) ? $attempt : null,
+                    ] );
+                }
+            }
+        } else {
+            if ( function_exists( 'yourls_log' ) ) {
+                yourls_log( 'warning', 'invalid_plugin_file', [
+                    'plugin' => $plugin,
+                    'file'   => $file,
+                ] );
+            }
         }
     }
 
@@ -613,6 +631,9 @@ function yourls_load_plugins() {
         $missing = '<strong>'.implode( '</strong>, <strong>', $active_plugins ).'</strong>';
         yourls_add_notice( $message.' '.$missing );
         $info .= ', '.$missing_count.' removed';
+        if ( function_exists( 'yourls_log' ) ) {
+            yourls_log( 'warning', 'plugins_missing_or_error', [ 'plugins' => array_values( $active_plugins ) ] );
+        }
     }
 
     return [
@@ -649,18 +670,34 @@ function yourls_activate_plugin( $plugin ) {
     $plugin = yourls_plugin_basename( $plugin );
     $plugindir = yourls_sanitize_filename( YOURLS_PLUGINDIR );
     if ( !yourls_is_a_plugin_file($plugindir . '/' . $plugin ) ) {
+        if ( function_exists( 'yourls_log' ) ) {
+            yourls_log( 'warning', 'activate_plugin_invalid_file', [
+                'plugin' => $plugin,
+                'file'   => $plugindir . '/' . $plugin,
+            ] );
+        }
         return yourls__( 'Not a valid plugin file' );
     }
 
     // check not activated already
     $ydb = yourls_get_db();
     if ( yourls_is_active_plugin( $plugin ) ) {
+        if ( function_exists( 'yourls_log' ) ) {
+            yourls_log( 'info', 'activate_plugin_already_active', [ 'plugin' => $plugin ] );
+        }
         return yourls__( 'Plugin already activated' );
     }
 
     // attempt activation.
     $attempt = yourls_include_file_sandbox( $plugindir.'/'.$plugin );
     if( $attempt !== true ) {
+        if ( function_exists( 'yourls_log' ) ) {
+            yourls_log( 'error', 'activate_plugin_failed', [
+                'plugin' => $plugin,
+                'file'   => $plugindir . '/' . $plugin,
+                'error'  => is_string( $attempt ) ? $attempt : null,
+            ] );
+        }
         return yourls_s( 'Plugin generated unexpected output. Error was: <br/><pre>%s</pre>', $attempt );
     }
 
@@ -685,6 +722,9 @@ function yourls_deactivate_plugin( $plugin ) {
 
     // Check plugin is active
     if ( !yourls_is_active_plugin( $plugin ) ) {
+        if ( function_exists( 'yourls_log' ) ) {
+            yourls_log( 'info', 'deactivate_plugin_not_active', [ 'plugin' => $plugin ] );
+        }
         return yourls__( 'Plugin not active' );
     }
 
@@ -695,6 +735,13 @@ function yourls_deactivate_plugin( $plugin ) {
     // Check if we have an error to display
     if ( is_string( $attempt ) ) {
         $message = yourls_s( 'Loading %s generated unexpected output. Error was: <br/><pre>%s</pre>', $uninst_file, $attempt );
+        if ( function_exists( 'yourls_log' ) ) {
+            yourls_log( 'error', 'deactivate_plugin_uninstall_failed', [
+                'plugin' => $plugin,
+                'file'   => $uninst_file,
+                'error'  => $attempt,
+            ] );
+        }
         return( $message );
     }
 

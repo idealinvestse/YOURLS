@@ -157,6 +157,13 @@ class YDB extends ExtendedPdo {
      * @return void
      */
     public function dead_or_error(\Exception $exception) {
+        if ( function_exists( 'yourls_log' ) ) {
+            yourls_log( 'error', 'db_connection_failed', [
+                'exception' => get_class( $exception ),
+                'message'   => $exception->getMessage(),
+            ] );
+        }
+
         // Use any /user/db_error.php file
         $file = YOURLS_USERDIR . '/db_error.php';
         if(file_exists($file)) {

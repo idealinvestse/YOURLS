@@ -48,6 +48,9 @@ function yourls_get_all_options() {
     $options = new \YOURLS\Database\Options(yourls_get_db());
 
     if ($options->get_all_options() === false) {
+        if ( function_exists( 'yourls_log' ) ) {
+            yourls_log( 'info', 'options_empty_or_missing', [] );
+        }
         // Zero option found but no unexpected error so far: YOURLS isn't installed
         yourls_set_installed(false);
         return;

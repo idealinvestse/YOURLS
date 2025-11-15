@@ -14,6 +14,14 @@ function yourls_db_connect() {
          or !defined( 'YOURLS_DB_NAME' )
          or !defined( 'YOURLS_DB_HOST' )
     ) {
+        if ( function_exists( 'yourls_log' ) ) {
+            yourls_log( 'error', 'db_config_constants_missing', [
+                'has_user' => defined( 'YOURLS_DB_USER' ),
+                'has_pass' => defined( 'YOURLS_DB_PASS' ),
+                'has_name' => defined( 'YOURLS_DB_NAME' ),
+                'has_host' => defined( 'YOURLS_DB_HOST' ),
+            ] );
+        }
         yourls_die( yourls__( 'Incorrect DB config, please refer to documentation' ), yourls__( 'Fatal error' ), 503 );
     }
 

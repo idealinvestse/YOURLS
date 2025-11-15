@@ -68,3 +68,37 @@ function yourls_debug_mode( $bool ) {
 function yourls_get_debug_mode() {
     return defined( 'YOURLS_DEBUG' ) && YOURLS_DEBUG;
 }
+
+/**
+ * Lightweight structured logger.
+ *
+ * Logs messages to PHP's error_log only when YOURLS_DEBUG is true, so
+ * production behavior is unchanged by default.
+ *
+ * @since 1.9.2
+ * @param string $level   Log level: debug, info, warning, error
+ * @param string $message Log message
+ * @param array  $context Optional contextual data to JSON-encode
+ * @return void
+ */
+function yourls_log( $level, $message, array $context = [] ) {
+    if ( !yourls_get_debug_mode() ) {
+        return;
+    }
+
+    // Normalize level
+    $level = strtolower( (string) $level );
+
+    // Basic context serialization; ignore failures silently to avoid
+    // introducing new errors in debug logging itself.
+    $context_str = '';
+    if ( !empty( $context ) ) {
+        $encoded = json_encode( $context );
+        if ( is_string( $encoded ) ) {
+            $context_str = ' ' . $encoded;
+        }
+    }
+
+    $line = sprintf('[YOURLS] [%s] %s%s', $level, $message, $context_str );
+    error_log( $line );
+}

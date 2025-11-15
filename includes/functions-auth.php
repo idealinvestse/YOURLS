@@ -96,6 +96,17 @@ function yourls_is_valid_user() {
 	if ( $valid ) {
 		yourls_do_action( 'login' );
 
+		if ( function_exists( 'yourls_log' ) ) {
+			$context = [
+				'is_api'  => yourls_is_API(),
+				'ip'      => function_exists( 'yourls_get_IP' ) ? yourls_get_IP() : null,
+			];
+			if ( isset( $_REQUEST['username'] ) && $_REQUEST['username'] !== '' ) {
+				$context['username'] = $_REQUEST['username'];
+			}
+			yourls_log( 'info', 'login_success', $context );
+		}
+
 		// (Re)store encrypted cookie if needed
 		if ( !yourls_is_API() ) {
 			yourls_store_cookie( YOURLS_USER );
@@ -114,6 +125,16 @@ function yourls_is_valid_user() {
 
 	// Login failed
 	yourls_do_action( 'login_failed' );
+	if ( function_exists( 'yourls_log' ) ) {
+		$context = [
+			'is_api'  => yourls_is_API(),
+			'ip'      => function_exists( 'yourls_get_IP' ) ? yourls_get_IP() : null,
+		];
+		if ( isset( $_REQUEST['username'] ) && $_REQUEST['username'] !== '' ) {
+			$context['username'] = $_REQUEST['username'];
+		}
+		yourls_log( 'warning', 'login_failed', $context );
+	}
 
 	if ( isset( $_REQUEST['username'] ) || isset( $_REQUEST['password'] ) ) {
 		return yourls__( 'Invalid username or password' );
