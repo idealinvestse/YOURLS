@@ -576,6 +576,19 @@ function yourls_get_plugin_data( $file ) {
  * @return array    Array('loaded' => bool, 'info' => string)
  */
 function yourls_load_plugins() {
+    // Optional safe mode: when YOURLS_SAFE_MODE is defined and true, skip plugin
+    // loading entirely. This is useful to recover from a broken plugin without
+    // editing the database or plugin files.
+    if ( defined( 'YOURLS_SAFE_MODE' ) && YOURLS_SAFE_MODE ) {
+        if ( function_exists( 'yourls_log' ) ) {
+            yourls_log( 'info', 'plugins_safe_mode_enabled', [] );
+        }
+        return [
+            'loaded' => false,
+            'info'   => 'safe_mode',
+        ];
+    }
+
     // Don't load plugins when installing or updating
     if ( yourls_is_installing() OR yourls_is_upgrading() OR !yourls_is_installed() ) {
         return [

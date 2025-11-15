@@ -55,6 +55,9 @@ class Options {
                 $check = $this->ydb->fetchAffected(sprintf("SHOW TABLES LIKE '%s'", $table));
                 // Table doesn't exist
                 if ($check ==0) {
+                    if ( function_exists( 'yourls_log' ) ) {
+                        yourls_log( 'warning', 'options_table_missing', [ 'table' => $table ] );
+                    }
                     return false;
                 }
 
@@ -68,6 +71,9 @@ class Options {
 
         // Unlikely scenario, but who knows: table exists, but is empty
         if (empty($options)) {
+            if ( function_exists( 'yourls_log' ) ) {
+                yourls_log( 'info', 'options_table_empty', [ 'table' => $table ] );
+            }
             return false;
         }
 
